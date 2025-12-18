@@ -1,190 +1,217 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Solpump Mini</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Solpump Mini - Crash</title>
 
-  <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: linear-gradient(180deg, #050b1a, #02050d);
-      color: #fff;
-    }
-    .container {
-      max-width: 420px;
-      margin: auto;
-      padding: 20px;
-    }
-    .card {
-      background: #0b132b;
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-    button {
-      width: 100%;
-      padding: 14px;
-      border-radius: 12px;
-      border: none;
-      background: #00f5a0;
-      color: #000;
-      font-size: 16px;
-      font-weight: bold;
-    }
-    input {
-      width: 100%;
-      padding: 12px;
-      border-radius: 10px;
-      border: none;
-      margin-top: 10px;
-      margin-bottom: 10px;
-      font-size: 16px;
-    }
-    .title {
-      font-size: 28px;
-      font-weight: bold;
-      margin-bottom: 16px;
-    }
-    .sub {
-      opacity: 0.8;
-      font-size: 14px;
-    }
-  </style>
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(180deg,#050b1a,#020617);
+  color: #fff;
+}
+.container {
+  max-width: 420px;
+  margin: auto;
+  padding: 20px;
+}
+.card {
+  background: #0b1228;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+button {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: none;
+  background: #00ffa3;
+  font-weight: bold;
+  cursor: pointer;
+}
+input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  margin: 10px 0;
+}
+.hidden { display: none; }
+.center { text-align: center; }
+.crash {
+  font-size: 40px;
+  font-weight: bold;
+}
+</style>
 </head>
 
 <body>
 <div class="container">
 
-  <div class="title">🚀 Solpump Mini</div>
+<h2>🚀 Solpump Mini</h2>
 
-  <!-- CONNECT -->
-  <div class="card">
-    <button onclick="connectWallet()">Connect Phantom Wallet</button>
-    <div id="wallet" class="sub" style="margin-top:10px;"></div>
+<!-- CONNECT -->
+<div class="card">
+  <button id="connectBtn">Connect Phantom Wallet</button>
+  <p id="walletText"></p>
+</div>
+
+<!-- GAME -->
+<div class="card hidden" id="gameCard">
+  <h3>Crash Game</h3>
+  <p>Points: <b id="points">0</b></p>
+
+  <div class="center">
+    <div class="crash" id="multiplier">1.00x</div>
   </div>
 
-  <!-- GAME (BUY POINTS INSIDE GAME) -->
-  <div class="card">
-    <h3>Buy Points (In Game)</h3>
-    <div class="sub">1 SOL = 1000 points | Min 0.01 SOL</div>
-    <input id="solInput" placeholder="Enter SOL (ex: 0.06)" />
-    <div id="pointsPreview" class="sub"></div>
-    <button onclick="buyPoints()">Buy Points</button>
-  </div>
+  <input id="betPoints" type="number" placeholder="Bet points (min 10)" />
+  <button onclick="startCrash()">START</button>
+  <button onclick="cashOut()">CASH OUT</button>
 
-  <!-- STATS -->
-  <div class="card">
-    <h3>Statistics</h3>
-    <div class="sub" id="prizePool">Total Prize Pool: 0 SOL</div>
-  </div>
+  <hr/>
+
+  <h4>Buy Points (IN GAME)</h4>
+  <p>1 SOL = 1000 points (min 0.01)</p>
+  <input id="buySol" type="number" step="0.01" placeholder="Enter SOL (ex: 0.06)" />
+  <button onclick="buyPoints()">Buy Points</button>
+</div>
+
+<!-- STATS -->
+<div class="card">
+  <h3>Statistics</h3>
+  <p>Total Prize Pool: <span id="prize">0</span> SOL</p>
+</div>
 
 </div>
 
 <script>
-/* ================= CONFIG ================= */
-
+/* CONFIG */
 const SYSTEM_WALLET = "H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6VVJwyiommqxZ";
-const POINT_RATE = 1000; // 1 SOL = 1000 points
-const MIN_SOL = 0.01;
+const RATE = 1000;
 
-let provider = null;
-let userWallet = null;
-let totalSol = 0;
+const SUPABASE_URL = "https://twnovzaygfpxydkzwzsd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3bm92emF5Z2ZweHlka3p3enNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMTU2MzEsImV4cCI6MjA4MTU5MTYzMX0.T5s5vqGPDXYqpr1kA85lh-2VF_rUdXg8YCutq0QZ5j4";
 
-/* ================= CONNECT ================= */
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function connectWallet() {
-  try {
-    if (!window.phantom || !window.phantom.solana) {
-      alert("Phantom wallet not found");
-      return;
-    }
+let wallet = null;
+let userPoints = 0;
+let crashTimer = null;
+let currentX = 1;
+let bet = 0;
+let crashed = false;
 
-    provider = window.phantom.solana;
-
-    const resp = await provider.request({
-      method: "connect"
-    });
-
-    userWallet = resp.publicKey.toString();
-
-    document.getElementById("wallet").innerText =
-      "Wallet: " + userWallet.slice(0,4) + "..." + userWallet.slice(-4);
-
-  } catch (e) {
-    alert("Connect failed");
-    console.log(e);
+/* CONNECT PHANTOM (MOBILE OK) */
+document.getElementById("connectBtn").onclick = async () => {
+  if (!window.solana || !window.solana.isPhantom) {
+    alert("Open in Phantom browser");
+    return;
   }
-}
+  const res = await window.solana.connect();
+  wallet = res.publicKey.toString();
+  document.getElementById("walletText").innerText =
+    "Wallet: " + wallet.slice(0,4) + "..." + wallet.slice(-4);
+  document.getElementById("gameCard").classList.remove("hidden");
+  loadUser();
+};
 
-/* ================= BUY POINTS ================= */
+/* LOAD USER */
+async function loadUser() {
+  const { data } = await supabase
+    .from("users")
+    .select("*")
+    .eq("wallet", wallet)
+    .single();
 
-document.getElementById("solInput").addEventListener("input", () => {
-  const sol = parseFloat(solInput.value);
-  if (!isNaN(sol)) {
-    document.getElementById("pointsPreview").innerText =
-      `You will get ${Math.floor(sol * POINT_RATE)} points`;
+  if (!data) {
+    await supabase.from("users").insert({ wallet, points: 0, total_paid_sol: 0 });
+    userPoints = 0;
   } else {
-    document.getElementById("pointsPreview").innerText = "";
+    userPoints = data.points;
   }
-});
-
-async function buyPoints() {
-  try {
-    if (!provider || !userWallet) {
-      alert("Connect wallet first");
-      return;
-    }
-
-    const sol = parseFloat(solInput.value);
-    if (isNaN(sol) || sol < MIN_SOL) {
-      alert("Minimum 0.01 SOL");
-      return;
-    }
-
-    const connection = new solanaWeb3.Connection(
-      solanaWeb3.clusterApiUrl("mainnet-beta"),
-      "confirmed"
-    );
-
-    const transaction = new solanaWeb3.Transaction().add(
-      solanaWeb3.SystemProgram.transfer({
-        fromPubkey: new solanaWeb3.PublicKey(userWallet),
-        toPubkey: new solanaWeb3.PublicKey(SYSTEM_WALLET),
-        lamports: sol * solanaWeb3.LAMPORTS_PER_SOL
-      })
-    );
-
-    transaction.feePayer = new solanaWeb3.PublicKey(userWallet);
-    const { blockhash } = await connection.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-
-    const signed = await provider.signTransaction(transaction);
-    await connection.sendRawTransaction(signed.serialize());
-
-    totalSol += sol;
-    updateStats();
-
-    alert("Success");
-
-  } catch (e) {
-    alert("Transaction failed");
-    console.log(e);
-  }
+  updateUI();
 }
 
-/* ================= STATS ================= */
+/* BUY POINTS */
+async function buyPoints() {
+  const sol = parseFloat(document.getElementById("buySol").value);
+  if (sol < 0.01) return alert("Min 0.01 SOL");
 
-function updateStats() {
-  const prize = (totalSol * 0.5).toFixed(3);
-  document.getElementById("prizePool").innerText =
-    `Total Prize Pool: ${prize} SOL`;
+  const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("mainnet-beta"));
+  const tx = new solanaWeb3.Transaction().add(
+    solanaWeb3.SystemProgram.transfer({
+      fromPubkey: new solanaWeb3.PublicKey(wallet),
+      toPubkey: new solanaWeb3.PublicKey(SYSTEM_WALLET),
+      lamports: sol * solanaWeb3.LAMPORTS_PER_SOL,
+    })
+  );
+
+  const { signature } = await window.solana.signAndSendTransaction(tx);
+  await connection.confirmTransaction(signature);
+
+  const gained = Math.floor(sol * RATE);
+  userPoints += gained;
+
+  await supabase
+    .from("users")
+    .update({
+      points: userPoints,
+      total_paid_sol: sol
+    })
+    .eq("wallet", wallet);
+
+  updateUI();
+}
+
+/* CRASH GAME */
+function startCrash() {
+  bet = parseInt(document.getElementById("betPoints").value);
+  if (bet < 10 || bet > userPoints) return alert("Invalid bet");
+
+  userPoints -= bet;
+  currentX = 1;
+  crashed = false;
+  updateUI();
+
+  crashTimer = setInterval(() => {
+    currentX += 0.05;
+    document.getElementById("multiplier").innerText = currentX.toFixed(2) + "x";
+    if (Math.random() < 0.015) crash();
+  }, 120);
+}
+
+function cashOut() {
+  if (crashed || !crashTimer) return;
+  clearInterval(crashTimer);
+  const win = Math.floor(bet * currentX);
+  userPoints += win;
+  savePoints();
+}
+
+function crash() {
+  clearInterval(crashTimer);
+  crashed = true;
+  document.getElementById("multiplier").innerText = "💥 CRASH";
+  savePoints();
+}
+
+async function savePoints() {
+  await supabase.from("users")
+    .update({ points: userPoints })
+    .eq("wallet", wallet);
+  updateUI();
+}
+
+function updateUI() {
+  document.getElementById("points").innerText = userPoints;
 }
 </script>
-
 </body>
   </html>
