@@ -5,27 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Solpump Mini</title>
 
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
 
   <style>
     body {
       margin: 0;
-      background: linear-gradient(180deg,#050b1a,#02040a);
-      color: #fff;
       font-family: Arial, sans-serif;
+      background: linear-gradient(180deg, #050b1a, #02050d);
+      color: #fff;
     }
-    .box {
-      margin: 20px;
+    .container {
+      max-width: 420px;
+      margin: auto;
       padding: 20px;
-      background: #0b1224;
+    }
+    .card {
+      background: #0b132b;
       border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
     }
     button {
       width: 100%;
       padding: 14px;
       border-radius: 12px;
       border: none;
-      background: #19f5a5;
+      background: #00f5a0;
+      color: #000;
       font-size: 16px;
       font-weight: bold;
     }
@@ -34,74 +40,151 @@
       padding: 12px;
       border-radius: 10px;
       border: none;
-      margin: 10px 0;
+      margin-top: 10px;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 16px;
+    }
+    .sub {
+      opacity: 0.8;
+      font-size: 14px;
     }
   </style>
 </head>
 
 <body>
+<div class="container">
 
-  <div class="box">
-    <h2>🚀 Solpump Mini</h2>
+  <div class="title">🚀 Solpump Mini</div>
+
+  <!-- CONNECT -->
+  <div class="card">
     <button onclick="connectWallet()">Connect Phantom Wallet</button>
-    <p id="wallet"></p>
+    <div id="wallet" class="sub" style="margin-top:10px;"></div>
   </div>
 
-  <div class="box">
-    <h3>Statistics</h3>
-    <p>Total Prize Pool: <span id="pool">0</span> SOL</p>
+  <!-- GAME (BUY POINTS INSIDE GAME) -->
+  <div class="card">
+    <h3>Buy Points (In Game)</h3>
+    <div class="sub">1 SOL = 1000 points | Min 0.01 SOL</div>
+    <input id="solInput" placeholder="Enter SOL (ex: 0.06)" />
+    <div id="pointsPreview" class="sub"></div>
+    <button onclick="buyPoints()">Buy Points</button>
   </div>
+
+  <!-- STATS -->
+  <div class="card">
+    <h3>Statistics</h3>
+    <div class="sub" id="prizePool">Total Prize Pool: 0 SOL</div>
+  </div>
+
+</div>
 
 <script>
-/* ===== CONFIG ===== */
+/* ================= CONFIG ================= */
+
 const SYSTEM_WALLET = "H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6VVJwyiommqxZ";
+const POINT_RATE = 1000; // 1 SOL = 1000 points
+const MIN_SOL = 0.01;
 
-const SUPABASE_URL = "https://twnovzaygfpxydkzwzsd.supabase.co";
-const SUPABASE_ANON_KEY =
-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3bm92emF5Z2ZweHlka3p3enNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMTU2MzEsImV4cCI6MjA4MTU5MTYzMX0.T5s5vqGPDXYqpr1kA85lh-2VF_rUdXg8YCutq0QZ5j4";
-
-const supabase = supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
-
+let provider = null;
 let userWallet = null;
+let totalSol = 0;
 
-/* ===== PHANTOM MOBILE CONNECT (ĐÚNG) ===== */
+/* ================= CONNECT ================= */
+
 async function connectWallet() {
   try {
-    const provider = window.phantom?.solana;
-    if (!provider || !provider.isPhantom) {
-      alert("Please open inside Phantom wallet browser");
+    if (!window.phantom || !window.phantom.solana) {
+      alert("Phantom wallet not found");
       return;
     }
 
-    const res = await provider.connect();
-    userWallet = res.publicKey.toString();
+    provider = window.phantom.solana;
+
+    const resp = await provider.request({
+      method: "connect"
+    });
+
+    userWallet = resp.publicKey.toString();
 
     document.getElementById("wallet").innerText =
       "Wallet: " + userWallet.slice(0,4) + "..." + userWallet.slice(-4);
 
-    loadPool();
   } catch (e) {
     alert("Connect failed");
-    console.error(e);
+    console.log(e);
   }
 }
 
-/* ===== LOAD TOTAL PRIZE POOL ===== */
-async function loadPool() {
-  const { data, error } = await supabase
-    .from("payments")
-    .select("amount_sol");
+/* ================= BUY POINTS ================= */
 
-  if (error) return;
+document.getElementById("solInput").addEventListener("input", () => {
+  const sol = parseFloat(solInput.value);
+  if (!isNaN(sol)) {
+    document.getElementById("pointsPreview").innerText =
+      `You will get ${Math.floor(sol * POINT_RATE)} points`;
+  } else {
+    document.getElementById("pointsPreview").innerText = "";
+  }
+});
 
-  let total = 0;
-  data.forEach(r => total += Number(r.amount_sol));
-  document.getElementById("pool").innerText = total.toFixed(3);
+async function buyPoints() {
+  try {
+    if (!provider || !userWallet) {
+      alert("Connect wallet first");
+      return;
+    }
+
+    const sol = parseFloat(solInput.value);
+    if (isNaN(sol) || sol < MIN_SOL) {
+      alert("Minimum 0.01 SOL");
+      return;
+    }
+
+    const connection = new solanaWeb3.Connection(
+      solanaWeb3.clusterApiUrl("mainnet-beta"),
+      "confirmed"
+    );
+
+    const transaction = new solanaWeb3.Transaction().add(
+      solanaWeb3.SystemProgram.transfer({
+        fromPubkey: new solanaWeb3.PublicKey(userWallet),
+        toPubkey: new solanaWeb3.PublicKey(SYSTEM_WALLET),
+        lamports: sol * solanaWeb3.LAMPORTS_PER_SOL
+      })
+    );
+
+    transaction.feePayer = new solanaWeb3.PublicKey(userWallet);
+    const { blockhash } = await connection.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
+
+    const signed = await provider.signTransaction(transaction);
+    await connection.sendRawTransaction(signed.serialize());
+
+    totalSol += sol;
+    updateStats();
+
+    alert("Success");
+
+  } catch (e) {
+    alert("Transaction failed");
+    console.log(e);
+  }
+}
+
+/* ================= STATS ================= */
+
+function updateStats() {
+  const prize = (totalSol * 0.5).toFixed(3);
+  document.getElementById("prizePool").innerText =
+    `Total Prize Pool: ${prize} SOL`;
 }
 </script>
 
 </body>
-</html>
+  </html>
