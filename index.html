@@ -1,135 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Solpump Mini</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
-  <style>
-    body {
-      margin: 0;
-      background: linear-gradient(180deg,#050b1c,#020617);
-      font-family: Arial, sans-serif;
-      color: white;
-    }
-    .container {
-      max-width: 420px;
-      margin: 0 auto;
-      padding: 24px;
-    }
-    .card {
-      background: #0b1229;
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-    button {
-      width: 100%;
-      padding: 14px;
-      border-radius: 12px;
-      border: none;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      background: #00ffa3;
-      color: #000;
-    }
-    input {
-      width: 100%;
-      padding: 12px;
-      border-radius: 10px;
-      border: none;
-      font-size: 16px;
-      margin: 10px 0;
-    }
-    .small {
-      opacity: 0.8;
-      font-size: 14px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Solpump Mini</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<style>
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#050b1c;
+  color:#fff;
+}
+.container{
+  max-width:420px;
+  margin:auto;
+  padding:20px;
+}
+.card{
+  background:#0b1229;
+  border-radius:16px;
+  padding:20px;
+  margin-bottom:20px;
+}
+button{
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:12px;
+  background:#00ffa3;
+  font-weight:bold;
+  font-size:16px;
+}
+input{
+  width:100%;
+  padding:12px;
+  border-radius:10px;
+  border:none;
+  margin:10px 0;
+  font-size:16px;
+}
+.small{opacity:.8;font-size:14px}
+.hidden{display:none}
+</style>
 </head>
 
 <body>
-  <div class="container">
-    <h1>🚀 Solpump Mini</h1>
+<div class="container">
+<h1>🚀 Solpump Mini</h1>
 
-    <div class="card">
-      <button onclick="connectWallet()">Connect Phantom Wallet</button>
-      <p id="wallet" class="small"></p>
-    </div>
+<!-- LOBBY -->
+<div class="card" id="lobby">
+  <button onclick="connectWallet()">Connect Phantom Wallet</button>
+  <p id="wallet" class="small"></p>
+  <button id="enterBtn" class="hidden" onclick="enterGame()">ENTER GAME</button>
+</div>
 
-    <div class="card" id="game" style="display:none">
-      <h3>Buy Points (In Game)</h3>
-      <p class="small">1 SOL = 1000 points | Min 0.01 SOL</p>
-      <input id="solInput" placeholder="Enter SOL (ex: 0.06)" />
-      <button onclick="buyPoints()">Buy Points</button>
-      <p id="pointsInfo" class="small"></p>
-    </div>
+<!-- GAME -->
+<div class="card hidden" id="game">
+  <h3>🎮 Game Room</h3>
+  <p>Your Points: <span id="points">0</span></p>
 
-    <div class="card">
-      <h3>Statistics</h3>
-      <p>Total Prize Pool: <span id="prize">0</span> SOL</p>
-    </div>
-  </div>
+  <hr style="opacity:.2">
+
+  <h4>Buy Points</h4>
+  <p class="small">1 SOL = 1000 points | Min 0.01 SOL</p>
+  <input id="solInput" placeholder="Enter SOL (ex: 0.06)">
+  <button onclick="buyPoints()">Buy Points</button>
+</div>
+
+<div class="card">
+  <h3>Statistics</h3>
+  <p>Total Prize Pool: <span id="prize">0</span> SOL</p>
+</div>
+</div>
 
 <script>
-/* ====== CONFIG ====== */
+/* CONFIG */
 const SYSTEM_WALLET = "H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6VVJwyiommqxZ";
 const connection = new solanaWeb3.Connection(
   solanaWeb3.clusterApiUrl("mainnet-beta"),
   "confirmed"
 );
 
-let userWallet = null;
+let wallet = null;
 let totalSol = 0;
+let userPoints = 0;
 
-/* ====== CONNECT ====== */
-async function connectWallet() {
-  if (!window.solana || !window.solana.isPhantom) {
-    alert("Please open this site inside Phantom browser");
+/* CONNECT */
+async function connectWallet(){
+  if(!window.solana || !window.solana.isPhantom){
+    alert("Open this site inside Phantom browser");
     return;
   }
   const res = await window.solana.connect();
-  userWallet = res.publicKey;
+  wallet = res.publicKey;
   document.getElementById("wallet").innerText =
-    "Wallet: " + userWallet.toString().slice(0,4) + "..." + userWallet.toString().slice(-4);
-  document.getElementById("game").style.display = "block";
+    "Wallet: " + wallet.toString().slice(0,4)+"..."+wallet.toString().slice(-4);
+  document.getElementById("enterBtn").classList.remove("hidden");
 }
 
-/* ====== BUY POINTS ====== */
-async function buyPoints() {
-  const val = parseFloat(document.getElementById("solInput").value);
-  if (isNaN(val) || val < 0.01) {
-    alert("Minimum 0.01 SOL");
+/* ENTER GAME */
+function enterGame(){
+  document.getElementById("lobby").classList.add("hidden");
+  document.getElementById("game").classList.remove("hidden");
+}
+
+/* BUY POINTS */
+async function buyPoints(){
+  const sol = parseFloat(document.getElementById("solInput").value);
+  if(isNaN(sol) || sol < 0.01){
+    alert("Min 0.01 SOL");
     return;
   }
 
-  const lamports = val * solanaWeb3.LAMPORTS_PER_SOL;
-
   const tx = new solanaWeb3.Transaction().add(
     solanaWeb3.SystemProgram.transfer({
-      fromPubkey: userWallet,
+      fromPubkey: wallet,
       toPubkey: new solanaWeb3.PublicKey(SYSTEM_WALLET),
-      lamports
+      lamports: sol * solanaWeb3.LAMPORTS_PER_SOL
     })
   );
 
-  tx.feePayer = userWallet;
-  const { blockhash } = await connection.getLatestBlockhash();
-  tx.recentBlockhash = blockhash;
+  tx.feePayer = wallet;
+  tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
   const signed = await window.solana.signTransaction(tx);
   const sig = await connection.sendRawTransaction(signed.serialize());
   await connection.confirmTransaction(sig);
 
-  const points = Math.floor(val * 1000);
-  totalSol += val;
+  const earned = Math.floor(sol * 1000);
+  userPoints += earned;
+  totalSol += sol;
 
-  document.getElementById("pointsInfo").innerText =
-    "You received " + points + " points";
-
-  document.getElementById("prize").innerText =
-    (totalSol * 0.5).toFixed(3);
+  document.getElementById("points").innerText = userPoints;
+  document.getElementById("prize").innerText = (totalSol * 0.5).toFixed(3);
 }
 </script>
 </body>
