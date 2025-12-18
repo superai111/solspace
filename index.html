@@ -3,129 +3,146 @@
 <head>
   <meta charset="UTF-8" />
   <title>Solpump Mini</title>
-  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
   <style>
     body {
-      background: #0b0f19;
-      color: white;
-      font-family: Arial;
+      background: #0b0f1a;
+      color: #fff;
+      font-family: Arial, sans-serif;
       padding: 20px;
     }
-    .card {
-      background: #121826;
-      padding: 20px;
+    .box {
+      background: #111827;
       border-radius: 12px;
-      margin-bottom: 20px;
+      padding: 16px;
+      margin-bottom: 16px;
     }
     button {
-      background: #00ffa3;
-      border: none;
+      width: 100%;
       padding: 12px;
       border-radius: 8px;
+      border: none;
+      background: #00ff99;
       font-weight: bold;
-      width: 100%;
+      font-size: 16px;
     }
     input {
       width: 100%;
       padding: 10px;
-      margin-top: 10px;
+      margin: 8px 0;
       border-radius: 6px;
+      border: none;
     }
   </style>
 </head>
 <body>
 
-<h1>🚀 Solpump Mini</h1>
+<h2>🚀 Solpump Mini</h2>
 
-<div class="card">
+<div class="box">
   <button onclick="connectWallet()">Kết nối ví Phantom</button>
-  <p id="wallet"></p>
+  <div id="wallet" style="margin-top:8px;"></div>
 </div>
 
-<div class="card">
+<div class="box">
   <h3>Mua điểm</h3>
-  <p>Tối thiểu 0.01 SOL — 10 điểm / 0.01 SOL</p>
-  <input id="solAmount" type="number" step="0.001" min="0.01" placeholder="Nhập SOL (vd: 0.06)" />
-  <p id="pointsPreview"></p>
+  <div>1 SOL = 1000 điểm (tối thiểu 0.01 SOL)</div>
+  <input id="solInput" type="number" step="0.001" placeholder="Nhập SOL (vd 0.06)" />
+  <div id="pointPreview"></div>
   <button onclick="buyPoints()">Mua điểm</button>
 </div>
 
-<div class="card">
+<div class="box">
   <h3>Thống kê</h3>
-  <p>Tổng SOL đã nạp: <span id="totalSol">0</span></p>
-  <p>Tổng giải (50%): <span id="prize">0</span></p>
+  <div>Tổng SOL đã nạp: <b id="totalSol">0</b> SOL</div>
+  <div>Tổng giải (50%): <b id="totalPrize">0</b> SOL</div>
 </div>
 
 <script>
-/* ================== CONFIG ================== */
+/* ================= CONFIG ================= */
 const SYSTEM_WALLET = "H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6VVJwyiommqxZ";
-const POINT_RATE = 1000; // 1 SOL = 1000 điểm
 
-const supabase = window.supabase.createClient(
-  "https://twnovzaygfpxydkzwzsd.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3bm92emF5Z2ZweHlka3p3enNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMTU2MzEsImV4cCI6MjA4MTU5MTYzMX0.T5s5vqGPDXYqpr1kA85lh-2VF_rUdXg8YCutq0QZ5j4"
+const SUPABASE_URL = "https://twnovzaygfpxydkzwzsd.supabase.co";
+const SUPABASE_ANON_KEY =
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3bm92emF5Z2ZweHlka3p3enNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMTU2MzEsImV4cCI6MjA4MTU5MTYzMX0.T5s5vqGPDXYqpr1kA85lh-2VF_rUdXg8YCutq0QZ5j4";
+
+const supabase = supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
 );
 
-let userWallet = null;
 const connection = new solanaWeb3.Connection(
-  solanaWeb3.clusterApiUrl("devnet")
+  solanaWeb3.clusterApiUrl("mainnet-beta")
 );
 
-/* ================== WALLET ================== */
+let walletAddress = null;
+
+/* ================= WALLET ================= */
 async function connectWallet() {
-  const resp = await window.solana.connect();
-  userWallet = resp.publicKey.toString();
-  document.getElementById("wallet").innerText = userWallet;
-  loadStats();
-}
-
-/* ================== POINT PREVIEW ================== */
-document.getElementById("solAmount").addEventListener("input", () => {
-  const sol = parseFloat(solAmount.value || 0);
-  const points = Math.floor(sol * POINT_RATE);
-  pointsPreview.innerText = points + " điểm";
-});
-
-/* ================== BUY POINTS ================== */
-async function buyPoints() {
-  const sol = parseFloat(solAmount.value);
-  if (!sol || sol < 0.01) {
-    alert("Tối thiểu 0.01 SOL");
+  if (!window.solana || !window.solana.isPhantom) {
+    alert("Cài Phantom Wallet trước");
     return;
   }
+  const res = await window.solana.connect();
+  walletAddress = res.publicKey.toString();
+  document.getElementById("wallet").innerText = walletAddress;
+}
+
+/* ================= UI ================= */
+document.getElementById("solInput").addEventListener("input", () => {
+  const sol = parseFloat(solInput.value || 0);
+  const points = Math.floor(sol * 1000);
+  document.getElementById("pointPreview").innerText =
+    points > 0 ? `${points} điểm` : "";
+});
+
+/* ================= BUY ================= */
+async function buyPoints() {
+  const sol = parseFloat(solInput.value);
+  if (!walletAddress) return alert("Chưa kết nối ví");
+  if (!sol || sol < 0.01) return alert("Tối thiểu 0.01 SOL");
 
   const tx = new solanaWeb3.Transaction().add(
     solanaWeb3.SystemProgram.transfer({
-      fromPubkey: window.solana.publicKey,
+      fromPubkey: new solanaWeb3.PublicKey(walletAddress),
       toPubkey: new solanaWeb3.PublicKey(SYSTEM_WALLET),
-      lamports: sol * solanaWeb3.LAMPORTS_PER_SOL,
+      lamports: solanaWeb3.LAMPORTS_PER_SOL * sol
     })
   );
 
-  const signature = await window.solana.signAndSendTransaction(tx);
-  await connection.confirmTransaction(signature.signature);
+  const { blockhash } = await connection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
 
-  const points = Math.floor(sol * POINT_RATE);
+  const signed = await window.solana.signTransaction(tx);
+  await connection.sendRawTransaction(signed.serialize());
+
+  const points = Math.floor(sol * 1000);
 
   await supabase.from("users").upsert({
-    wallet: userWallet,
+    wallet: walletAddress,
     points: points,
     total_paid_sol: sol
-  }, { onConflict: ["wallet"] });
+  });
 
-  alert("Mua điểm thành công!");
+  alert("Mua điểm thành công");
   loadStats();
 }
 
-/* ================== STATS ================== */
+/* ================= STATS ================= */
 async function loadStats() {
-  const { data } = await supabase.from("users").select("total_paid_sol");
-  const total = data.reduce((s, r) => s + Number(r.total_paid_sol || 0), 0);
-  document.getElementById("totalSol").innerText = total.toFixed(3);
-  document.getElementById("prize").innerText = (total * 0.5).toFixed(3);
-}
-</script>
+  const { data } = await supabase
+    .from("users")
+    .select("total_paid_sol");
 
+  const total = data.reduce((a, b) => a + Number(b.total_paid_sol), 0);
+  document.getElementById("totalSol").innerText = total.toFixed(3);
+  document.getElementById("totalPrize").innerText = (total * 0.5).toFixed(3);
+}
+
+loadStats();
+</script>
 </body>
 </html>
