@@ -1,113 +1,191 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Solpump Mini</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{margin:0;font-family:Arial;background:#050b1c;color:#fff}
-.container{max-width:420px;margin:auto;padding:16px}
-.card{background:#0b1229;border-radius:16px;padding:16px;margin-bottom:16px}
-h1,h2{text-align:center}
-button{width:100%;padding:14px;border:none;border-radius:12px;background:#00ffa3;font-size:16px;font-weight:bold}
-.hidden{display:none}
-.multiplier{font-size:64px;text-align:center;margin:30px 0;font-weight:bold}
+body{
+  margin:0;
+  background:#070b1d;
+  color:#fff;
+  font-family:Arial;
+}
+.container{
+  max-width:420px;
+  margin:auto;
+  padding:16px;
+}
+.card{
+  background:#0d1330;
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:14px;
+}
+.btn{
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:10px;
+  background:#19f7a5;
+  font-size:16px;
+  font-weight:bold;
+}
+input{
+  width:100%;
+  padding:12px;
+  border-radius:10px;
+  border:none;
+  margin:8px 0;
+}
+.big{
+  font-size:48px;
+  text-align:center;
+}
+.small{opacity:.7;font-size:13px}
+.row{display:flex;gap:8px}
+.row button{flex:1}
+.log{
+  font-size:13px;
+  max-height:120px;
+  overflow:auto;
+}
 </style>
 </head>
 
 <body>
 <div class="container">
 
-<h1>🚀 Solpump Mini</h1>
-
-<!-- LEADERBOARD -->
+<!-- VIEW MODE -->
 <div class="card">
-<h2>🏆 Weekly Leaderboard</h2>
-<p>1. Dz73...u3W6 — 1200 pts</p>
-<p>2. 9xKp...A21D — 860 pts</p>
-<p>3. HkQ2...M88Z — 540 pts</p>
-</div>
-
-<!-- GAME PREVIEW -->
-<div class="card">
-<h2>👀 Game Preview</h2>
-<div class="multiplier" id="preview">1.00x</div>
-<button onclick="enterGame()">ENTER GAME</button>
+  <div class="big" id="multi">1.00x</div>
+  <button class="btn" onclick="enterGame()">ENTER GAME</button>
 </div>
 
 <!-- GAME -->
-<div class="card hidden" id="game">
-<h2>🎮 Crash Game</h2>
+<div id="game" style="display:none">
 
-<div class="multiplier" id="multi">1.00x</div>
-
-<button onclick="startGame()">START</button>
-<button onclick="stopGame()">STOP</button>
-
-<p>Your Points: <span id="points">0</span></p>
-
-<hr>
-
-<h3>Buy Points (In Game)</h3>
-<p>1 SOL = 1000 points | Min 0.01 SOL</p>
-<input id="sol" placeholder="Enter SOL (ex: 0.05)" style="width:100%;padding:10px;border-radius:10px">
-<br><br>
-<button onclick="buyPoints()">Buy Points</button>
+<div class="card">
+  <h3>🎮 Crash Game</h3>
+  <div class="row">
+    <button class="btn" onclick="start()">START</button>
+    <button class="btn" onclick="stop()">STOP</button>
+  </div>
 </div>
 
+<div class="card">
+  <h3>🤖 Auto Play</h3>
+  <input id="autoCash" placeholder="Auto Cashout (ex 1.8)" />
+  <button class="btn" onclick="toggleAuto()">AUTO ON / OFF</button>
+</div>
+
+<div class="card">
+  <h3>💰 Your Points: <span id="points">0</span></h3>
+  <input id="sol" placeholder="Buy SOL (ex 0.05)">
+  <button class="btn" onclick="buy()">BUY POINTS</button>
+</div>
+
+<div class="card">
+  <h3>📜 History</h3>
+  <div id="history" class="log"></div>
+</div>
+
+<div class="card">
+  <h3>👥 Live Players</h3>
+  <div id="players" class="log"></div>
+</div>
+
+</div>
 </div>
 
 <script>
-let playing=false;
-let multiplier=1;
-let timer=null;
-let points=0;
+let playing=false, multi=1, timer=null;
+let crashAt=0, points=0, auto=false;
+let history=[], players=[];
 
 function enterGame(){
-  document.getElementById("game").classList.remove("hidden");
+  document.getElementById("game").style.display="block";
 }
 
-function startGame(){
+function start(){
   if(playing) return;
   playing=true;
-  multiplier=1;
-  document.getElementById("multi").innerText="1.00x";
-
-  const crashAt=(Math.random()*4+1.2).toFixed(2);
-
-  timer=setInterval(()=>{
-    multiplier+=0.02;
-    document.getElementById("multi").innerText=multiplier.toFixed(2)+"x";
-    if(multiplier>=crashAt){
-      crash();
-    }
-  },50);
+  multi=1;
+  crashAt=randomCrash();
+  timer=setInterval(tick,50);
 }
 
-function stopGame(){
+function stop(){
   if(!playing) return;
   clearInterval(timer);
   playing=false;
-  const earned=Math.floor(multiplier*10);
-  points+=earned;
+  const win=Math.floor(multi*8);
+  points+=win;
   document.getElementById("points").innerText=points;
+  addHistory(multi.toFixed(2));
+}
+
+function tick(){
+  let speed=0.02+multi*0.006;
+  if(Math.random()<0.1) speed*=3; // giật
+  multi+=speed;
+  document.getElementById("multi").innerText=multi.toFixed(2)+"x";
+
+  if(auto){
+    let ac=parseFloat(document.getElementById("autoCash").value);
+    if(ac && multi>=ac) stop();
+  }
+
+  if(multi>=crashAt || Math.random()<0.004){
+    crash();
+  }
 }
 
 function crash(){
   clearInterval(timer);
   playing=false;
   document.getElementById("multi").innerText="💥 CRASH";
+  addHistory("💥 "+crashAt.toFixed(2));
 }
 
-function buyPoints(){
-  const sol=parseFloat(document.getElementById("sol").value);
+function randomCrash(){
+  let r=Math.random();
+  if(r<0.35) return rand(1.05,1.3);
+  if(r<0.65) return rand(1.3,2.2);
+  if(r<0.85) return rand(2.2,5);
+  return rand(5,20);
+}
+
+function addHistory(x){
+  history.unshift(x+"x");
+  history=history.slice(0,10);
+  document.getElementById("history").innerHTML=history.join("<br>");
+}
+
+function buy(){
+  let sol=parseFloat(document.getElementById("sol").value);
   if(sol>=0.01){
     points+=Math.floor(sol*1000);
     document.getElementById("points").innerText=points;
-    alert("Points added");
   }
 }
-</script>
 
+function toggleAuto(){
+  auto=!auto;
+}
+
+function rand(a,b){return Math.random()*(b-a)+a}
+
+// FAKE PLAYERS
+setInterval(()=>{
+  if(Math.random()<0.5){
+    let p="0x"+Math.random().toString(16).substr(2,4);
+    let m=rand(1.1,6).toFixed(2);
+    players.unshift(`${p} cashed at ${m}x`);
+    players=players.slice(0,6);
+    document.getElementById("players").innerHTML=players.join("<br>");
+  }
+},1500);
+</script>
 </body>
 </html>
