@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Solpump Mini</title>
 
 <style>
 body {
-  margin: 0;
   background: radial-gradient(circle at top, #0b1a3a, #050814);
-  font-family: Arial, sans-serif;
   color: #fff;
+  font-family: Arial;
+  margin: 0;
 }
 .container {
   max-width: 420px;
@@ -21,20 +21,25 @@ body {
   background: #0c1635;
   border-radius: 14px;
   padding: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+}
+.multiplier {
+  font-size: 56px;
+  font-weight: bold;
+  text-align: center;
 }
 button {
   width: 100%;
   padding: 14px;
-  font-size: 18px;
-  border: none;
   border-radius: 12px;
+  border: none;
   background: #2cffb3;
+  font-size: 18px;
   font-weight: bold;
 }
 button.stop {
   background: #222;
-  color: #aaa;
+  color: #999;
 }
 input {
   width: 100%;
@@ -42,12 +47,6 @@ input {
   border-radius: 10px;
   border: none;
   margin-bottom: 8px;
-  font-size: 16px;
-}
-.multiplier {
-  font-size: 56px;
-  text-align: center;
-  font-weight: bold;
 }
 .history {
   display: flex;
@@ -55,9 +54,9 @@ input {
   overflow-x: auto;
 }
 .history span {
+  background: #15245a;
   padding: 6px 10px;
   border-radius: 8px;
-  background: #15245a;
 }
 </style>
 </head>
@@ -77,14 +76,13 @@ input {
 </div>
 
 <div class="card">
-  <!-- SỐ KHOANH ĐỎ: LUÔN HIỂN LIVE -->
-  <div class="multiplier" id="displayMultiplier">1.00x</div>
+  <div class="multiplier" id="display">1.00x</div>
 
-  <input id="bet" type="number" placeholder="Bet points (ex: 50)" />
-  <input id="auto" type="number" step="0.01" placeholder="Auto Cashout (ex: 2.0)" />
+  <input id="bet" type="number" placeholder="Bet points">
+  <input id="auto" type="number" step="0.01" placeholder="Auto Cashout">
 
   <button onclick="startRound()">START</button>
-  <button class="stop" onclick="playerCashout()">STOP</button>
+  <button class="stop" onclick="cashout()">STOP</button>
 
   <p>Your Points: <b id="points">1000</b></p>
 </div>
@@ -92,130 +90,130 @@ input {
 </div>
 
 <script>
-/* ---------------- STATE ---------------- */
 let wallet = null;
 let userPoints = 1000;
 
-let betPoints = 0;
-let autoCashout = null;
+let liveMultiplier = 1.0;
+let crashPoint = 0;
 
 let running = false;
 let crashed = false;
-let playerExited = false;
+let exited = false;
 
-let liveMultiplier = 1.0;
-let crashPoint = 0;
+let bet = 0;
+let auto = null;
+
 let interval = null;
+let roundStartTime = 0;
+const MIN_RUN_TIME = 600; // ms
 
-/* ---------------- WALLET ---------------- */
 async function connectWallet() {
-  if (!window.solana || !window.solana.isPhantom) {
-    alert("Open inside Phantom browser");
+  if (!window.solana) {
+    alert("Open inside Phantom");
     return;
   }
-  const res = await window.solana.connect();
-  wallet = res.publicKey.toString();
+  const r = await window.solana.connect();
+  wallet = r.publicKey.toString();
   document.getElementById("wallet").innerText =
     "Wallet: " + wallet.slice(0,4) + "..." + wallet.slice(-4);
 }
 
-/* ---------------- GAME ---------------- */
-function generateCrashPoint() {
+function genCrash() {
   const r = Math.random();
-  if (r < 0.55) return 1 + Math.random() * 0.35;
-  if (r < 0.8) return 1.35 + Math.random() * 1.3;
-  return 2.5 + Math.random() * 6;
+  if (r < 0.55) return 1 + Math.random() * 0.4;
+  if (r < 0.8) return 1.4 + Math.random() * 1.4;
+  return 2.8 + Math.random() * 6;
 }
 
 function startRound() {
   if (running) return;
 
-  betPoints = parseInt(document.getElementById("bet").value);
-  if (!betPoints || betPoints <= 0 || betPoints > userPoints) {
+  bet = parseInt(document.getElementById("bet").value);
+  auto = parseFloat(document.getElementById("auto").value) || null;
+
+  if (!bet || bet <= 0 || bet > userPoints) {
     alert("Invalid bet");
     return;
   }
 
-  autoCashout = parseFloat(document.getElementById("auto").value) || null;
-
-  userPoints -= betPoints;
+  userPoints -= bet;
   updatePoints();
 
   liveMultiplier = 1.0;
-  crashPoint = generateCrashPoint();
+  crashPoint = genCrash();
 
   running = true;
   crashed = false;
-  playerExited = false;
+  exited = false;
 
-  updateDisplay(liveMultiplier);
+  roundStartTime = Date.now();
+  updateDisplay();
 
-  interval = setInterval(gameLoop, 25);
+  interval = setInterval(loop, 30);
 }
 
-function gameLoop() {
+function loop() {
   if (!running || crashed) return;
 
-  let speed;
-  if (liveMultiplier < 1.4) speed = 0.02;
-  else if (liveMultiplier < 2) speed = 0.03;
-  else if (liveMultiplier < 3) speed = 0.045;
-  else speed = 0.065;
+  // tốc độ tăng
+  let speed = 0.015;
+  if (liveMultiplier > 1.5) speed = 0.03;
+  if (liveMultiplier > 2.5) speed = 0.05;
 
   // fake lag
-  if (Math.random() < 0.08) return;
+  if (Math.random() < 0.05) return;
 
   liveMultiplier += speed;
-  updateDisplay(liveMultiplier);
+  updateDisplay();
 
-  if (!playerExited && autoCashout && liveMultiplier >= autoCashout) {
-    playerCashout();
+  if (!exited && auto && liveMultiplier >= auto) {
+    cashout();
   }
 
-  if (liveMultiplier >= crashPoint) {
-    endRound();
+  if (
+    Date.now() - roundStartTime >= MIN_RUN_TIME &&
+    liveMultiplier >= crashPoint
+  ) {
+    crash();
   }
 }
 
-function playerCashout() {
-  if (!running || playerExited || crashed) return;
-
-  playerExited = true;
-  const win = Math.floor(betPoints * liveMultiplier);
+function cashout() {
+  if (!running || exited || crashed) return;
+  exited = true;
+  const win = Math.floor(bet * liveMultiplier);
   userPoints += win;
   updatePoints();
 }
 
-function endRound() {
+function crash() {
   crashed = true;
   running = false;
   clearInterval(interval);
 
-  // GIỮ SỐ CRASH CUỐI VÒNG
   updateDisplay(crashPoint);
   addHistory(crashPoint);
 
   setTimeout(() => {
     liveMultiplier = 1.0;
-    updateDisplay(liveMultiplier);
+    updateDisplay();
   }, 1200);
 }
 
-/* ---------------- UI ---------------- */
 function updateDisplay(val) {
-  document.getElementById("displayMultiplier").innerText =
-    val.toFixed(2) + "x";
+  document.getElementById("display").innerText =
+    (val ?? liveMultiplier).toFixed(2) + "x";
 }
 
 function updatePoints() {
   document.getElementById("points").innerText = userPoints;
 }
 
-function addHistory(mult) {
+function addHistory(v) {
   const h = document.getElementById("history");
   const s = document.createElement("span");
-  s.innerText = mult.toFixed(2) + "x";
-  s.style.background = mult < 1.3 ? "#6f1d1d" : "#1d6f42";
+  s.innerText = v.toFixed(2) + "x";
+  s.style.background = v < 1.3 ? "#7a1c1c" : "#1c7a52";
   h.prepend(s);
 }
 </script>
