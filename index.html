@@ -14,6 +14,7 @@ button{width:100%;padding:14px;border:none;border-radius:12px;background:#00ffa3
 input{width:100%;padding:12px;border-radius:10px;border:none;font-size:16px;margin:10px 0}
 .hidden{display:none}
 .small{font-size:14px;opacity:.8}
+hr{opacity:.2}
 </style>
 </head>
 
@@ -21,30 +22,49 @@ input{width:100%;padding:12px;border-radius:10px;border:none;font-size:16px;marg
 <div class="container">
 <h1>🚀 Solpump Mini</h1>
 
-<!-- LOBBY -->
-<div class="card" id="lobby">
+<!-- PREVIEW -->
+<div class="card">
+  <h3>👀 Game Preview</h3>
+  <p class="small">
+    Pump your score, climb weekly rankings, win SOL rewards.
+    You can watch everything before joining.
+  </p>
+</div>
+
+<!-- LEADERBOARD -->
+<div class="card">
+  <h3>🏆 Weekly Leaderboard</h3>
+  <ol class="small">
+    <li>Dz73...u3W6 — 1200 pts</li>
+    <li>9xKp...A21D — 860 pts</li>
+    <li>HkQ2...M88Z — 540 pts</li>
+  </ol>
+</div>
+
+<!-- STATISTICS -->
+<div class="card">
+  <h3>📊 Statistics</h3>
+  <p>Total Prize Pool: <span id="prize">0</span> SOL</p>
+</div>
+
+<!-- CONNECT -->
+<div class="card" id="connectCard">
   <button onclick="connectWallet()">Connect Phantom Wallet</button>
   <p id="wallet" class="small"></p>
   <button id="enterBtn" class="hidden" onclick="enterGame()">ENTER GAME</button>
 </div>
 
-<!-- GAME (ẨN HOÀN TOÀN LÚC ĐẦU) -->
+<!-- GAME -->
 <div class="card hidden" id="game">
-  <h3>🎮 Game Room</h3>
+  <h3>🎮 In Game</h3>
   <p>Your Points: <span id="points">0</span></p>
 
-  <hr style="opacity:.2">
+  <hr>
 
-  <h4>Buy Points (In Game)</h4>
+  <h4>Buy Points</h4>
   <p class="small">1 SOL = 1000 points | Min 0.01 SOL</p>
   <input id="solInput" placeholder="Enter SOL (ex: 0.06)">
   <button onclick="buyPoints()">Buy Points</button>
-</div>
-
-<!-- STATS -->
-<div class="card">
-  <h3>Statistics</h3>
-  <p>Total Prize Pool: <span id="prize">0</span> SOL</p>
 </div>
 </div>
 
@@ -72,8 +92,8 @@ async function connectWallet(){
 }
 
 function enterGame(){
-  document.getElementById("lobby").classList.add("hidden");
   document.getElementById("game").classList.remove("hidden");
+  document.getElementById("connectCard").classList.add("hidden");
 }
 
 async function buyPoints(){
