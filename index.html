@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Solpump Mini</title>
 
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+
 <style>
 body {
   background: radial-gradient(circle at top, #0b1a3a, #050814);
@@ -59,13 +61,10 @@ input {
   border-radius: 8px;
 }
 .warn {
-  color: #ff6b6b;
-  margin-top: 8px;
+  color: #ff4d4d;
+  font-size: 14px;
 }
 </style>
-
-<!-- Solana Web3 -->
-<script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
 </head>
 
 <body>
@@ -88,30 +87,31 @@ input {
   <input id="bet" type="number" placeholder="Bet points">
   <input id="auto" type="number" step="0.01" placeholder="Auto Cashout">
 
-  <div class="warn" id="warn"></div>
+  <div id="warn" class="warn"></div>
 
   <button onclick="startRound()">START</button>
   <button class="stop" onclick="cashout()">STOP</button>
 
   <p>Your Points: <b id="points">0</b></p>
-
-  <button onclick="buyPoints()">NẠP POINT (SOL)</button>
+  <button onclick="depositSOL()">NẠP POINT (SOL)</button>
 </div>
 
 </div>
 
 <script>
-/* ================== WALLET & SOL ================== */
-const SYSTEM_WALLET = "H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6VVJwyiommqxZ";
+/* ================== SOLANA ================== */
 const connection = new solanaWeb3.Connection(
   solanaWeb3.clusterApiUrl("mainnet-beta"),
   "confirmed"
 );
 
-let wallet = null;
+const SYSTEM_WALLET = new solanaWeb3.PublicKey(
+  "H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6VVJwyiommqxZ"
+);
 
 /* ================== GAME STATE ================== */
-let userPoints = Number(localStorage.getItem("userPoints") || 1000);
+let wallet = null;
+let userPoints = Number(localStorage.getItem("points")) || 0;
 
 let liveMultiplier = 1.0;
 let crashPoint = 0;
@@ -125,47 +125,81 @@ let auto = null;
 
 let interval = null;
 let roundStartTime = 0;
-const MIN_RUN_TIME = 600; // ms
+const MIN_RUN_TIME = 600;
 
+/* ================== INIT ================== */
 updatePoints();
 
 /* ================== WALLET ================== */
 async function connectWallet() {
-  if (!window.solana || !window.solana.isPhantom) {
-    alert("Vui lòng mở trang bằng Phantom Wallet");
+  if (!window.solana) {
+    alert("Mở link trong Phantom");
     return;
   }
   const r = await window.solana.connect();
-  wallet = r.publicKey.toString();
+  wallet = r.publicKey;
   document.getElementById("wallet").innerText =
-    "Wallet: " + wallet.slice(0,4) + "..." + wallet.slice(-4);
+    "Wallet: " + wallet.toBase58().slice(0,4) + "..." + wallet.toBase58().slice(-4);
+}
+
+/* ================== SOL DEPOSIT ================== */
+async function depositSOL() {
+  if (!wallet) {
+    alert("Kết nối ví trước");
+    return;
+  }
+
+  const sol = Number(prompt("Nhập số SOL muốn nạp (tối thiểu 0.01):"));
+  if (!sol || sol < 0.01) return;
+
+  const tx = new solanaWeb3.Transaction().add(
+    solanaWeb3.SystemProgram.transfer({
+      fromPubkey: wallet,
+      toPubkey: SYSTEM_WALLET,
+      lamports: sol * solanaWeb3.LAMPORTS_PER_SOL
+    })
+  );
+
+  tx.feePayer = wallet;
+  tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+  // ✅ DESKTOP + MOBILE
+  const signed = await window.solana.signAndSendTransaction(tx);
+  await connection.confirmTransaction(signed.signature, "confirmed");
+
+  const earned = Math.floor(sol * 1000);
+  userPoints += earned;
+  savePoints();
+
+  alert("Nạp thành công +" + earned + " points");
 }
 
 /* ================== GAME LOGIC ================== */
 function genCrash() {
   const r = Math.random();
-  if (r < 0.55) return 1 + Math.random() * 0.4;
-  if (r < 0.8) return 1.4 + Math.random() * 1.4;
+  if (r < 0.6) return 1 + Math.random() * 0.3;
+  if (r < 0.85) return 1.3 + Math.random() * 1.5;
   return 2.8 + Math.random() * 6;
 }
 
 function startRound() {
+  document.getElementById("warn").innerText = "";
+
   if (running) return;
 
   bet = parseInt(document.getElementById("bet").value);
   auto = parseFloat(document.getElementById("auto").value) || null;
 
   if (!bet || bet <= 0) {
-    warn.innerText = "Vui lòng nhập số point cược";
+    alert("Invalid bet");
     return;
   }
 
   if (bet > userPoints) {
-    warn.innerText = "❗ Số point không đủ, bạn cần nạp thêm";
+    document.getElementById("warn").innerText =
+      "❗ Số point không đủ, bạn cần nạp thêm";
     return;
   }
-
-  warn.innerText = "";
 
   userPoints -= bet;
   savePoints();
@@ -186,10 +220,10 @@ function startRound() {
 function loop() {
   if (!running || crashed) return;
 
-  const SPEED = 0.035; // chạy đều – nhanh hơn
-  if (Math.random() < 0.05) return;
+  let speed = 0.02;        // nhanh – đều
+  if (Math.random() < 0.06) return; // fake lag
 
-  liveMultiplier += SPEED;
+  liveMultiplier += speed;
   updateDisplay();
 
   if (!exited && auto && liveMultiplier >= auto) {
@@ -226,7 +260,7 @@ function crash() {
   }, 1200);
 }
 
-/* ================== UI HELPERS ================== */
+/* ================== UI ================== */
 function updateDisplay(val) {
   document.getElementById("display").innerText =
     (val ?? liveMultiplier).toFixed(2) + "x";
@@ -237,7 +271,7 @@ function updatePoints() {
 }
 
 function savePoints() {
-  localStorage.setItem("userPoints", userPoints);
+  localStorage.setItem("points", userPoints);
   updatePoints();
 }
 
@@ -247,45 +281,6 @@ function addHistory(v) {
   s.innerText = v.toFixed(2) + "x";
   s.style.background = v < 1.3 ? "#7a1c1c" : "#1c7a52";
   h.prepend(s);
-}
-
-/* ================== BUY POINTS WITH SOL ================== */
-async function buyPoints() {
-  if (!wallet) {
-    alert("Bạn cần kết nối ví Phantom trước");
-    return;
-  }
-
-  const solAmount = Number(prompt("Nhập số SOL muốn nạp (tối thiểu 0.01):"));
-  if (!solAmount || solAmount < 0.01) return;
-
-  try {
-    const tx = new solanaWeb3.Transaction().add(
-      solanaWeb3.SystemProgram.transfer({
-        fromPubkey: window.solana.publicKey,
-        toPubkey: new solanaWeb3.PublicKey(SYSTEM_WALLET),
-        lamports: solAmount * solanaWeb3.LAMPORTS_PER_SOL
-      })
-    );
-
-    tx.feePayer = window.solana.publicKey;
-    const { blockhash } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-
-    const signed = await window.solana.signTransaction(tx);
-    const sig = await connection.sendRawTransaction(signed.serialize());
-    await connection.confirmTransaction(sig, "confirmed");
-
-    // QUY ĐỔI: 0.01 SOL = 10 POINT  → 1 SOL = 1000 POINT
-    const earned = solAmount * 1000;
-    userPoints += earned;
-    savePoints();
-
-    alert("Nạp thành công +" + earned + " point");
-
-  } catch (e) {
-    alert("Giao dịch thất bại");
-  }
 }
 </script>
 
