@@ -1,2 +1,2 @@
-# solpump-mini
+# solspace
 Solana point-based game (non-gambling)
