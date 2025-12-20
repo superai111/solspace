@@ -6,7 +6,6 @@
 <title>Solspace</title>
 
 <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-<script src="https://unpkg.com/bs58@5.0.0/dist/bs58.min.js"></script>
 
 <style>
 body {
@@ -39,7 +38,6 @@ input {
 .history { display: flex; gap: 6px; overflow-x: auto; }
 .history span { background: #15245a; padding: 6px 10px; border-radius: 8px; }
 .warn { color: #ff5a5a; font-size: 14px; }
-.profit { color: #2cffb3; font-size: 14px; }
 </style>
 </head>
 
@@ -63,7 +61,6 @@ input {
   <input id="auto" type="number" step="0.01" placeholder="Auto Cashout">
 
   <div id="warn" class="warn"></div>
-  <div id="profit" class="profit"></div>
 
   <button onclick="startRound()">START</button>
   <button class="stop" onclick="cashout()">STOP</button>
@@ -85,7 +82,7 @@ const SYSTEM_WALLET = new solanaWeb3.PublicKey(
 
 /* ===== STATE ===== */
 let wallet = null;
-let signedOK = false; // ⬅️ đã xác thực chữ ký với backend chưa
+let signedOK = false;
 let userPoints = Number(localStorage.getItem("points")) || 0;
 updatePoints();
 
@@ -98,7 +95,7 @@ function updatePoints(){
   document.getElementById("points").innerText = userPoints;
 }
 
-/* ===== WALLET: CONNECT + SIGN + VERIFY ===== */
+/* ===== WALLET (PHANTOM MOBILE SAFE) ===== */
 async function connectWallet(){
   try {
     if (!window.solana || !window.solana.isPhantom) {
@@ -106,39 +103,37 @@ async function connectWallet(){
       return;
     }
 
-    // 1) Connect
-    const resp = await window.solana.connect({ onlyIfTrusted: false });
-    const pubkey = resp.publicKey.toString();
+    // 1️⃣ Connect
+    const resp = await window.solana.connect();
+    wallet = resp.publicKey.toString();
 
-    // 2) Message ký
-    const message = `Solspace login\nWallet: ${pubkey}\nTime: ${Date.now()}`;
-    const encoded = new TextEncoder().encode(message);
+    // 2️⃣ Tạo transaction 0 SOL để BẮT KÝ
+    const connection = new solanaWeb3.Connection(
+      solanaWeb3.clusterApiUrl("mainnet-beta"),
+      "confirmed"
+    );
 
-    // 3) Ký message (Phantom bật popup)
-    const signed = await window.solana.signMessage(encoded, "utf8");
-    const signatureBase58 = bs58.encode(signed.signature);
+    const pubkey = new solanaWeb3.PublicKey(wallet);
 
-    // 4) Gửi backend xác thực
-    const res = await fetch(BACKEND_URL + "/verify-sign", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        wallet: pubkey,
-        message,
-        signature: signatureBase58
+    const tx = new solanaWeb3.Transaction().add(
+      solanaWeb3.SystemProgram.transfer({
+        fromPubkey: pubkey,
+        toPubkey: pubkey,
+        lamports: 0
       })
-    });
-    const data = await res.json();
-    if (!data.ok) {
-      alert("Xác thực chữ ký thất bại");
-      return;
-    }
+    );
 
-    // 5) OK
-    wallet = pubkey;
+    tx.feePayer = pubkey;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+    // 3️⃣ Phantom bắt buộc bật popup ký
+    await window.solana.signTransaction(tx);
+
     signedOK = true;
+
     document.getElementById("wallet").innerText =
-      pubkey.slice(0,4) + "..." + pubkey.slice(-4);
+      wallet.slice(0,4) + "..." + wallet.slice(-4);
+
     alert("Kết nối & ký ví thành công");
   } catch (e) {
     console.error(e);
@@ -215,9 +210,9 @@ function addHistory(v){
   document.getElementById("history").prepend(s);
 }
 
-/* ===== NẠP SOL – PHANTOM + BACKEND ===== */
+/* ===== NẠP SOL ===== */
 async function depositSOL(){
-  if(!window.solana || !wallet || !signedOK){
+  if(!wallet || !signedOK){
     alert("Cần kết nối & ký ví trước");
     return;
   }
@@ -248,11 +243,9 @@ async function depositSOL(){
   tx.feePayer = fromPubkey;
   tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
-  // Phantom bật ký giao dịch
   const signed = await window.solana.signAndSendTransaction(tx);
   await connection.confirmTransaction(signed.signature, "confirmed");
 
-  // Backend cộng point
   const res = await fetch(BACKEND_URL + "/check-deposit",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
@@ -265,7 +258,7 @@ async function depositSOL(){
     savePoints();
     alert("Nạp thành công +" + data.addedPoint + " point");
   }else{
-    alert("Đã gửi SOL, backend chưa ghi nhận – bấm lại sau 10–20s");
+    alert("Đã gửi SOL, backend chưa ghi nhận – chờ 10–20s");
   }
 }
 </script>
