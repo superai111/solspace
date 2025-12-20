@@ -17,9 +17,24 @@ body {
 .container { max-width: 420px; margin: auto; padding: 16px; }
 .card { background: #0c1635; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
 .multiplier { font-size: 56px; font-weight: bold; text-align: center; }
-button { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #2cffb3; font-size: 18px; font-weight: bold; margin-top: 6px; }
+button {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: #2cffb3;
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 6px;
+}
 button.stop { background: #222; color: #999; }
-input { width: 100%; padding: 12px; border-radius: 10px; border: none; margin-bottom: 8px; }
+input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  margin-bottom: 8px;
+}
 .history { display: flex; gap: 6px; overflow-x: auto; }
 .history span { background: #15245a; padding: 6px 10px; border-radius: 8px; }
 .warn { color: #ff5a5a; font-size: 14px; }
@@ -61,18 +76,29 @@ input { width: 100%; padding: 12px; border-radius: 10px; border: none; margin-bo
 </div>
 
 <script>
+/* ===== CONFIG ===== */
 const BACKEND_URL = "https://solspace-backend-i089.onrender.com";
+
+/* ===== STATE ===== */
 let wallet = null;
+let userPoints = Number(localStorage.getItem("points")) || 0;
+updatePoints();
 
 /* ===== POINT ===== */
-let userPoints = Number(localStorage.getItem("points")) || 1000;
-updatePoints();
-function savePoints(){ localStorage.setItem("points", userPoints); updatePoints(); }
-function updatePoints(){ document.getElementById("points").innerText = userPoints; }
+function savePoints(){
+  localStorage.setItem("points", userPoints);
+  updatePoints();
+}
+function updatePoints(){
+  document.getElementById("points").innerText = userPoints;
+}
 
 /* ===== WALLET ===== */
 async function connectWallet(){
-  if(!window.solana){ alert("Mở bằng Phantom"); return; }
+  if(!window.solana){
+    alert("Mở bằng Phantom");
+    return;
+  }
   const r = await window.solana.connect();
   wallet = r.publicKey.toString();
   document.getElementById("wallet").innerText =
@@ -80,59 +106,99 @@ async function connectWallet(){
 }
 
 /* ===== GAME ===== */
-let liveMultiplier=1, crashPoint=0, running=false, exited=false, bet=0, auto=null;
+let liveMultiplier = 1;
+let crashPoint = 0;
+let running = false;
+let exited = false;
+let bet = 0;
+let auto = null;
+
 function genCrash(){
-  const r=Math.random();
-  if(r<0.6) return 1+Math.random()*0.5;
-  if(r<0.85) return 1.5+Math.random()*1.5;
-  return 3+Math.random()*6;
+  const r = Math.random();
+  if(r < 0.6) return 1 + Math.random() * 0.5;
+  if(r < 0.85) return 1.5 + Math.random() * 1.5;
+  return 3 + Math.random() * 6;
 }
+
 function startRound(){
   if(running) return;
-  bet=+document.getElementById("bet").value;
-  auto=+document.getElementById("auto").value||null;
-  if(!bet||bet>userPoints){ document.getElementById("warn").innerText="Không đủ point"; return; }
-  userPoints-=bet; savePoints();
-  liveMultiplier=1; crashPoint=genCrash(); running=true; exited=false;
-  const loop=setInterval(()=>{
-    if(!running) return clearInterval(loop);
-    liveMultiplier+=0.03;
-    document.getElementById("display").innerText=liveMultiplier.toFixed(2)+"x";
-    if(!exited && auto && liveMultiplier>=auto) cashout();
-    if(liveMultiplier>=crashPoint){ running=false; addHistory(crashPoint); }
+
+  bet = +document.getElementById("bet").value;
+  auto = +document.getElementById("auto").value || null;
+
+  if(!bet || bet > userPoints){
+    document.getElementById("warn").innerText = "Không đủ point";
+    return;
+  }
+
+  document.getElementById("warn").innerText = "";
+  userPoints -= bet;
+  savePoints();
+
+  liveMultiplier = 1;
+  crashPoint = genCrash();
+  running = true;
+  exited = false;
+
+  const loop = setInterval(()=>{
+    if(!running){
+      clearInterval(loop);
+      return;
+    }
+
+    liveMultiplier += 0.03;
+    document.getElementById("display").innerText =
+      liveMultiplier.toFixed(2)+"x";
+
+    if(!exited && auto && liveMultiplier >= auto){
+      cashout();
+    }
+
+    if(liveMultiplier >= crashPoint){
+      running = false;
+      addHistory(crashPoint);
+    }
   },30);
 }
+
 function cashout(){
-  if(!running||exited) return;
-  exited=true;
-  const win=Math.floor(bet*liveMultiplier);
-  userPoints+=win; savePoints();
+  if(!running || exited) return;
+  exited = true;
+  const win = Math.floor(bet * liveMultiplier);
+  userPoints += win;
+  savePoints();
 }
 
 /* ===== HISTORY ===== */
 function addHistory(v){
-  const s=document.createElement("span");
-  s.innerText=v.toFixed(2)+"x";
+  const s = document.createElement("span");
+  s.innerText = v.toFixed(2)+"x";
   document.getElementById("history").prepend(s);
 }
 
-/* ===== NẠP SOL (BACKEND) ===== */
+/* ===== NẠP SOL – BACKEND ===== */
 async function checkDeposit(){
-  if(!wallet){ alert("Chưa kết nối ví"); return; }
-  const res=await fetch(BACKEND_URL+"/check-deposit",{
+  if(!wallet){
+    alert("Chưa kết nối ví");
+    return;
+  }
+
+  const res = await fetch(BACKEND_URL + "/check-deposit",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ wallet })
+    body: JSON.stringify({ wallet })
   });
-  const data=await res.json();
-  if(data.addedPoint>0){
-    userPoints+=data.addedPoint;
+
+  const data = await res.json();
+
+  if(data.ok && data.addedPoint > 0){
+    userPoints += data.addedPoint;
     savePoints();
-    alert("Đã cộng "+data.addedPoint+" point");
+    alert("Đã cộng " + data.addedPoint + " point");
   }else{
-    alert("Chưa có SOL mới (>=0.005)");
+    alert("Chưa có SOL mới (>= 0.005)");
   }
 }
 </script>
 </body>
-  </html>
+</html>
