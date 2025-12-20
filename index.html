@@ -82,7 +82,6 @@ const SYSTEM_WALLET = new solanaWeb3.PublicKey(
 
 /* ===== STATE ===== */
 let wallet = null;
-let signedOK = false;
 let userPoints = Number(localStorage.getItem("points")) || 0;
 updatePoints();
 
@@ -95,49 +94,19 @@ function updatePoints(){
   document.getElementById("points").innerText = userPoints;
 }
 
-/* ===== WALLET (PHANTOM MOBILE SAFE) ===== */
+/* ===== CONNECT WALLET (KHÔNG KÝ) ===== */
 async function connectWallet(){
   try {
     if (!window.solana || !window.solana.isPhantom) {
       alert("Vui lòng mở bằng Phantom Browser");
       return;
     }
-
-    // 1️⃣ Connect
     const resp = await window.solana.connect();
     wallet = resp.publicKey.toString();
-
-    // 2️⃣ Tạo transaction 0 SOL để BẮT KÝ
-    const connection = new solanaWeb3.Connection(
-      solanaWeb3.clusterApiUrl("mainnet-beta"),
-      "confirmed"
-    );
-
-    const pubkey = new solanaWeb3.PublicKey(wallet);
-
-    const tx = new solanaWeb3.Transaction().add(
-      solanaWeb3.SystemProgram.transfer({
-        fromPubkey: pubkey,
-        toPubkey: pubkey,
-        lamports: 0
-      })
-    );
-
-    tx.feePayer = pubkey;
-    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-    // 3️⃣ Phantom bắt buộc bật popup ký
-    await window.solana.signTransaction(tx);
-
-    signedOK = true;
-
     document.getElementById("wallet").innerText =
       wallet.slice(0,4) + "..." + wallet.slice(-4);
-
-    alert("Kết nối & ký ví thành công");
   } catch (e) {
-    console.error(e);
-    alert("Lỗi kết nối/ký ví");
+    alert("Không kết nối được ví");
   }
 }
 
@@ -177,10 +146,7 @@ function startRound(){
   exited = false;
 
   const loop = setInterval(()=>{
-    if(!running){
-      clearInterval(loop);
-      return;
-    }
+    if(!running){ clearInterval(loop); return; }
     liveMultiplier += 0.03;
     document.getElementById("display").innerText =
       liveMultiplier.toFixed(2)+"x";
@@ -210,10 +176,10 @@ function addHistory(v){
   document.getElementById("history").prepend(s);
 }
 
-/* ===== NẠP SOL ===== */
+/* ===== NẠP SOL (PHANTOM BẬT KÝ) ===== */
 async function depositSOL(){
-  if(!wallet || !signedOK){
-    alert("Cần kết nối & ký ví trước");
+  if(!wallet){
+    alert("Cần kết nối ví trước");
     return;
   }
 
@@ -232,6 +198,7 @@ async function depositSOL(){
   );
 
   const fromPubkey = new solanaWeb3.PublicKey(wallet);
+
   const tx = new solanaWeb3.Transaction().add(
     solanaWeb3.SystemProgram.transfer({
       fromPubkey,
@@ -243,9 +210,11 @@ async function depositSOL(){
   tx.feePayer = fromPubkey;
   tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
+  // 🔥 Phantom bật ký & gửi
   const signed = await window.solana.signAndSendTransaction(tx);
   await connection.confirmTransaction(signed.signature, "confirmed");
 
+  // 🔥 Backend quét blockchain
   const res = await fetch(BACKEND_URL + "/check-deposit",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
@@ -258,7 +227,7 @@ async function depositSOL(){
     savePoints();
     alert("Nạp thành công +" + data.addedPoint + " point");
   }else{
-    alert("Đã gửi SOL, backend chưa ghi nhận – chờ 10–20s");
+    alert("Đã gửi SOL, backend chưa ghi nhận – chờ 10–20s bấm lại");
   }
 }
 </script>
