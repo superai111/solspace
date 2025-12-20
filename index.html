@@ -71,13 +71,16 @@ input {
 </div>
 
 <div class="card">
-  <button onclick="checkDeposit()">NAP POINT (SOL)</button>
+  <button onclick="depositSOL()">NAP POINT (SOL)</button>
 </div>
 </div>
 
 <script>
 /* ===== CONFIG ===== */
 const BACKEND_URL = "https://solspace-backend-i089.onrender.com";
+const SYSTEM_WALLET = new solanaWeb3.PublicKey(
+  "H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6VVJwyiommqxZ"
+);
 
 /* ===== STATE ===== */
 let wallet = null;
@@ -176,13 +179,45 @@ function addHistory(v){
   document.getElementById("history").prepend(s);
 }
 
-/* ===== NẠP SOL – BACKEND ===== */
-async function checkDeposit(){
-  if(!wallet){
-    alert("Chưa kết nối ví");
+/* ===== NẠP SOL – PHANTOM + BACKEND ===== */
+async function depositSOL(){
+  if(!window.solana || !wallet){
+    alert("Chưa kết nối Phantom");
     return;
   }
 
+  const solStr = prompt("Nhập số SOL muốn nạp (tối thiểu 0.005):");
+  if(!solStr) return;
+
+  const sol = Number(solStr);
+  if(isNaN(sol) || sol < 0.005){
+    alert("Tối thiểu 0.005 SOL");
+    return;
+  }
+
+  const connection = new solanaWeb3.Connection(
+    solanaWeb3.clusterApiUrl("mainnet-beta"),
+    "confirmed"
+  );
+
+  const fromPubkey = new solanaWeb3.PublicKey(wallet);
+
+  const tx = new solanaWeb3.Transaction().add(
+    solanaWeb3.SystemProgram.transfer({
+      fromPubkey,
+      toPubkey: SYSTEM_WALLET,
+      lamports: sol * solanaWeb3.LAMPORTS_PER_SOL
+    })
+  );
+
+  tx.feePayer = fromPubkey;
+  tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+  // 👉 Phantom bật lên
+  const signed = await window.solana.signAndSendTransaction(tx);
+  await connection.confirmTransaction(signed.signature, "confirmed");
+
+  // 👉 Gọi backend cộng point
   const res = await fetch(BACKEND_URL + "/check-deposit",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
@@ -194,9 +229,9 @@ async function checkDeposit(){
   if(data.ok && data.addedPoint > 0){
     userPoints += data.addedPoint;
     savePoints();
-    alert("Đã cộng " + data.addedPoint + " point");
+    alert("Nạp thành công +" + data.addedPoint + " point");
   }else{
-    alert("Chưa có SOL mới (>= 0.005)");
+    alert("Đã gửi SOL, backend chưa ghi nhận – thử lại sau");
   }
 }
 </script>
