@@ -57,6 +57,27 @@ input, select {
   font-weight: bold;
 }
 .toast.show { opacity: 1; }
+
+/* Tab Leaderboard */
+.tab-buttons { display: flex; margin-bottom: 10px; }
+.tab-btn {
+  flex: 1;
+  padding: 10px;
+  background: #15245a;
+  border: none;
+  color: #aaa;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tab-btn.active {
+  background: #2cffb3;
+  color: #000;
+  font-weight: bold;
+}
+table { width: 100%; font-size: 14px; border-collapse: collapse; }
+th, td { padding: 8px 4px; }
+th { color: #2cffb3; }
+td:nth-child(3) { text-align: right; }
 </style>
 </head>
 
@@ -96,6 +117,28 @@ input, select {
     <input id="depositAmount" type="number" min="0.005" step="0.001" placeholder="SOL amount (>= 0.005)">
     <button id="depositBtn" onclick="depositSOL()">DEPOSIT SOL</button>
   </div>
+
+  <!-- LEADERBOARD WITH TABS -->
+  <div class="card">
+    <h3 style="margin-top:0">🏆 Leaderboard</h3>
+    <div class="tab-buttons">
+      <button class="tab-btn active" onclick="switchTab('48h')">48 Hours</button>
+      <button class="tab-btn" onclick="switchTab('final')">Season Final</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th align="left">#</th>
+          <th align="left">Wallet</th>
+          <th align="right">Score</th>
+        </tr>
+      </thead>
+      <tbody id="leaderboardBody"></tbody>
+    </table>
+    <p style="text-align:center; font-size:12px; color:#888; margin-top:10px;">
+      Auto refresh every 30s
+    </p>
+  </div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -109,6 +152,7 @@ const SYSTEM_WALLET = new solanaWeb3.PublicKey("H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6
 const $ = id => document.getElementById(id);
 const toast = $("toast");
 let toastTimeout = null;
+let currentTab = "48h";
 
 /* ===== STATE ===== */
 let provider = null;
@@ -142,39 +186,37 @@ function addHistory(value) {
   }
 }
 
-/* ===== CONNECT WALLET ===== */
-async function connectWallet() {
-  const type = $("walletType").value;
-  let detected = null;
-
-  if (type === "phantom" && window.solana?.isPhantom) detected = window.solana;
-  else if (type === "solflare" && window.solflare?.isSolflare) detected = window.solflare;
-  else if (type === "backpack" && window.backpack?.isBackpack) detected = window.backpack;
-
-  if (detected) {
-    try { await detected.connect({ onlyIfTrusted: true }); } catch {}
-    if (!detected.isConnected) {
-      try { await detected.connect(); }
-      catch { showToast("Connection rejected"); return; }
-    }
-    provider = detected;
-    wallet = provider.publicKey.toString();
-    $("wallet").textContent = wallet.slice(0, 4) + "..." + wallet.slice(-4);
-    showToast("Wallet connected successfully!");
-    return;
-  }
-
-  const url = encodeURIComponent(location.href);
-  const links = {
-    phantom: `https://phantom.app/ul/browse/${url}?ref=solspace`,
-    solflare: `https://solflare.com/ul/browse/${url}`,
-    backpack: `https://backpack.app/ul/browse/${url}`
-  };
-
-  if (confirm("Wallet not detected.\nOpen in the selected wallet's browser?")) {
-    location.href = links[type];
-  }
+/* ===== TAB SWITCH ===== */
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+  document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add("active");
+  loadLeaderboard();
 }
+
+/* ===== LEADERBOARD ===== */
+async function loadLeaderboard() {
+  const endpoint = currentTab === "final" ? "/leaderboard/final" : "/leaderboard?range=48h";
+  const res = await fetch(BACKEND_URL + endpoint);
+  if (!res.ok) return;
+
+  const data = await res.json();
+  const body = $("leaderboardBody");
+  body.innerHTML = "";
+
+  data.forEach((u, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${u.rank || i + 1}</td>
+      <td>${u.wallet.slice(0,4)}...${u.wallet.slice(-4)}</td>
+      <td align="right">${currentTab === "final" ? u.finalScore.toFixed(3) : u.score.toFixed(3)}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+setInterval(loadLeaderboard, 30000);
+loadLeaderboard();
 
 /* ===== GAME ===== */
 function genCrash() {
@@ -237,72 +279,6 @@ function cashout() {
   $("stopBtn").disabled = true;
   showToast(`Cashed out at ${multiplier.toFixed(2)}x → +${win} points!`);
 }
-
-/* ===== DEPOSIT SOL ===== */
-async function depositSOL() {
-  if (!provider) return showToast("Please connect wallet first");
-
-  const btn = $("depositBtn");
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Depositing...";
-
-  try {
-    try { await provider.connect({ onlyIfTrusted: true }); } 
-    catch { await provider.connect(); }
-
-    const sol = Number($("depositAmount").value);
-    if (isNaN(sol) || sol < 0.005) {
-      showToast("Minimum 0.005 SOL");
-      return;
-    }
-
-    const conn = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("mainnet-beta"), "confirmed");
-    const from = provider.publicKey;
-
-    const tx = new solanaWeb3.Transaction().add(
-      solanaWeb3.SystemProgram.transfer({
-        fromPubkey: from,
-        toPubkey: SYSTEM_WALLET,
-        lamports: Math.floor(sol * solanaWeb3.LAMPORTS_PER_SOL)
-      })
-    );
-
-    tx.feePayer = from;
-    const { blockhash } = await conn.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-
-    const { signature } = await provider.signAndSendTransaction(tx);
-    await conn.confirmTransaction(signature, "confirmed");
-
-    const res = await fetch(BACKEND_URL + "/check-deposit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet: from.toString() })
-    });
-
-    if (!res.ok) throw new Error("Backend error");
-
-    const data = await res.json();
-
-    if (data.ok && data.addedPoint > 0) {
-      points += data.addedPoint;
-      savePoints();
-      showToast(`Deposit success! +${data.addedPoint} points`);
-    } else {
-      showToast("SOL sent – points will update soon");
-    }
-
-    $("depositAmount").value = "";
-
-  } catch (e) {
-    console.error(e);
-    showToast("Transaction cancelled or failed");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-}
 </script>
 </body>
-</html>
+      </html>
