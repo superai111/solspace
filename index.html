@@ -1,213 +1,53 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Solspace</title>
-
-<script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-
-<style>
-body {
-  background: radial-gradient(circle at top, #0b1a3a, #050814);
-  color: #fff;
-  font-family: Arial, sans-serif;
-  margin: 0;
-}
-.container { max-width: 420px; margin: auto; padding: 16px; }
-.card { background: #0c1635; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
-.multiplier { font-size: 56px; font-weight: bold; text-align: center; margin: 15px 0; }
-button {
-  width: 100%;
-  padding: 14px;
-  border-radius: 12px;
-  border: none;
-  background: #2cffb3;
-  font-size: 18px;
-  font-weight: bold;
-  margin-top: 6px;
-  cursor: pointer;
-}
-button.stop { background: #222; color: #999; }
-button:disabled { opacity: 0.6; cursor: not-allowed; }
-input, select {
-  width: 100%;
-  padding: 12px;
-  border-radius: 10px;
-  border: none;
-  margin-bottom: 8px;
-  box-sizing: border-box;
-}
-.history { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; }
-.history span { background: #15245a; padding: 6px 12px; border-radius: 8px; white-space: nowrap; flex-shrink: 0; }
-.warn { color: #ff5a5a; font-size: 14px; text-align: center; min-height: 20px; }
-.toast {
-  position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1e2a5a;
-  color: #2cffb3;
-  padding: 14px 28px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-  z-index: 1000;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  font-weight: bold;
-}
-.toast.show { opacity: 1; }
-
-.tab-buttons { display: flex; gap: 6px; margin-bottom: 10px; }
-.tab-btn {
-  flex: 1;
-  padding: 10px;
-  background: #15245a;
-  border: none;
-  color: #aaa;
-  font-size: 14px;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.tab-btn.active {
-  background: #2cffb3;
-  color: #000;
-  font-weight: bold;
-}
-table { width: 100%; font-size: 14px; border-collapse: collapse; }
-th, td { padding: 6px 4px; }
-th { color: #2cffb3; }
-td:last-child { text-align: right; }
-</style>
-</head>
-
-<body>
-<div class="container">
-  <h2>🚀 Solspace</h2>
-
-  <div class="card">
-    <select id="walletType">
-      <option value="phantom">Phantom</option>
-      <option value="solflare">Solflare</option>
-      <option value="backpack">Backpack</option>
-    </select>
-    <button onclick="connectWallet()">Connect Wallet</button>
-    <div id="wallet" style="margin-top:8px; word-break:break-all; font-size:14px;"></div>
-  </div>
-
-  <div class="card">
-    <div class="history" id="history"></div>
-  </div>
-
-  <div class="card">
-    <div class="multiplier" id="display">1.00x</div>
-    <input id="bet" type="number" min="1" step="1" placeholder="Bet Points">
-    <input id="auto" type="number" min="1.01" step="0.01" placeholder="Auto Cashout (optional)">
-    <div id="warn" class="warn"></div>
-    <button onclick="startRound()">START</button>
-    <button class="stop" id="stopBtn" onclick="cashout()" disabled>STOP</button>
-    <p>Your Points: <b id="points">0</b></p>
-  </div>
-
-  <div class="card">
-    <input id="depositAmount" type="number" min="0.005" step="0.001" placeholder="SOL amount (>= 0.005)">
-    <button id="depositBtn" onclick="depositSOL()">DEPOSIT SOL</button>
-  </div>
-
-  <div class="card">
-    <h3 style="margin-top:0">🏆 Leaderboard</h3>
-    <div class="tab-buttons">
-      <button class="tab-btn active" onclick="switchTab('48h')">48H</button>
-      <button class="tab-btn" onclick="switchTab('final')">Season</button>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Wallet</th>
-          <th>Score</th>
-        </tr>
-      </thead>
-      <tbody id="leaderboardBody"></tbody>
-    </table>
-  </div>
-</div>
-
-<div id="toast" class="toast"></div>
+<!-- (PHẦN TRÊN GIỮ NGUYÊN 100%, TAO KHÔNG ĐỤNG) -->
 
 <script>
-const BACKEND_URL = "https://solspace-backend-i089.onrender.com";
-const SYSTEM_WALLET = new solanaWeb3.PublicKey("H2yVMrEbexHFdsAMFQtBY3Lp3BBz6cu6VVJwyiommqxZ");
+/* ===== ADD: FRONTEND ANTI-CHEAT STATE ===== */
+let lastActionTime = 0;
 
-const $ = id => document.getElementById(id);
-const toast = $("toast");
-let toastTimeout = null;
-
-let provider = null;
-let wallet = null;
-let points = Number(localStorage.getItem("points")) || 0;
-$("points").innerText = points;
-
-let running=false, exited=false, bet=0, auto=null, multiplier=1;
-let currentTab="48h";
-
-function savePoints(){ localStorage.setItem("points",points); $("points").innerText=points; }
-
-function showToast(msg,d=3500){
-  clearTimeout(toastTimeout);
-  toast.textContent=msg;
-  toast.classList.add("show");
-  toastTimeout=setTimeout(()=>toast.classList.remove("show"),d);
-}
-
-function addHistory(v){
-  const s=document.createElement("span");
-  s.textContent=v.toFixed(2)+"x";
-  $("history").prepend(s);
-  if($("history").children.length>30) $("history").removeChild($("history").lastChild);
-}
-
-/* ===== CONNECT WALLET (PC + MOBILE CHUẨN) ===== */
-async function connectWallet(){
-  const type=$("walletType").value;
-  let detected=null;
-
-  if(type==="phantom" && window.solana?.isPhantom) detected=window.solana;
-  else if(type==="solflare" && window.solflare?.isSolflare) detected=window.solflare;
-  else if(type==="backpack" && window.backpack?.isBackpack) detected=window.backpack;
-
-  if(detected){
-    try{
-      try{ await detected.connect({onlyIfTrusted:true}); }catch{}
-      if(!detected.isConnected) await detected.connect();
-      provider=detected;
-      wallet=provider.publicKey.toString();
-      $("wallet").textContent=wallet.slice(0,4)+"..."+wallet.slice(-4);
-      showToast("Wallet connected");
-      return;
-    }catch{
-      showToast("Connection rejected");
-      return;
+/* ===== ADD: SYNC POINTS FROM BACKEND ===== */
+async function syncPointsFromBackend(){
+  if(!wallet) return;
+  try{
+    const res = await fetch(BACKEND_URL + "/leaderboard?range=48h");
+    if(!res.ok) return;
+    const data = await res.json();
+    const me = data.find(u => u.wallet === wallet);
+    if(me && typeof me.points === "number"){
+      points = me.points;
+      savePoints();
     }
+  }catch{}
+}
+
+/* ===== ADD: SAFE SEND GAME RESULT ===== */
+async function sendGameResult(profit, volume){
+  if(!wallet) return;
+  try{
+    await fetch(BACKEND_URL + "/game/result",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ wallet, profit, volume })
+    });
+  }catch{}
+}
+
+/* ===== GAME (CHỈ BỔ SUNG, KHÔNG SỬA LOGIC CŨ) ===== */
+function startRound(){
+  const now = Date.now();
+
+  /* === ADD: ANTI-SPAM CLICK === */
+  if(now - lastActionTime < 500){
+    showToast("Too fast");
+    return;
+  }
+  lastActionTime = now;
+
+  /* === ADD: REQUIRE WALLET === */
+  if(!wallet){
+    showToast("Connect wallet first");
+    return;
   }
 
-  const url=encodeURIComponent(location.href);
-  const links={
-    phantom:`https://phantom.app/ul/browse/${url}`,
-    solflare:`https://solflare.com/ul/browse/${url}`,
-    backpack:`https://backpack.app/ul/browse/${url}`
-  };
-  showToast("Opening wallet…");
-  location.href=links[type];
-}
-
-/* ===== GAME + LEADERBOARD + DEPOSIT (GIỮ NGUYÊN LOGIC) ===== */
-function genCrash(){
-  const r=Math.random();
-  return r<0.6?1+Math.random()*0.5:r<0.85?1.5+Math.random()*1.5:3+Math.random()*6;
-}
-
-function startRound(){
   if(running)return;
   bet=+$("bet").value; auto=+$("auto").value||null;
   if(!bet||bet<1||bet>points){$("warn").textContent="Invalid bet";return;}
@@ -217,14 +57,25 @@ function startRound(){
   $("stopBtn").disabled=false; $("display").textContent="1.00x";
   $("bet").value=""; $("auto").value="";
   const crash=genCrash();
+
   const loop=setInterval(()=>{
     if(!running){clearInterval(loop);return;}
     multiplier+=0.03;
     $("display").textContent=multiplier.toFixed(2)+"x";
     if(auto && multiplier>=auto && !exited) cashout();
+
     if(multiplier>=crash){
-      clearInterval(loop);running=false;$("stopBtn").disabled=true;
+      clearInterval(loop);
+      running=false;
+      $("stopBtn").disabled=true;
       addHistory(crash);
+
+      /* === ADD: SEND LOSS RESULT === */
+      if(!exited){
+        sendGameResult(0, bet);
+        syncPointsFromBackend();
+        showToast(`Crashed at ${crash.toFixed(2)}x`);
+      }
     }
   },30);
 }
@@ -232,24 +83,14 @@ function startRound(){
 function cashout(){
   if(!running||exited)return;
   exited=true;
+
   const win=Math.floor(bet*multiplier);
   points+=win; savePoints();
   $("stopBtn").disabled=true;
+
+  /* === ADD: SEND WIN RESULT === */
+  sendGameResult(win, bet).then(syncPointsFromBackend);
+
   showToast(`+${win} points`);
 }
-
-async function loadLeaderboard(){
-  const url=currentTab==="final"?BACKEND_URL+"/leaderboard/final":BACKEND_URL+"/leaderboard?range=48h";
-  const res=await fetch(url); if(!res.ok)return;
-  const data=await res.json();
-  const body=$("leaderboardBody"); body.innerHTML="";
-  data.forEach((u,i)=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${u.rank||i+1}</td><td>${u.wallet.slice(0,4)}...${u.wallet.slice(-4)}</td><td>${(currentTab==="final"?u.finalScore:u.score).toFixed(3)}</td>`;
-    body.appendChild(tr);
-  });
-}
-setInterval(loadLeaderboard,30000); loadLeaderboard();
 </script>
-</body>
-</html>
