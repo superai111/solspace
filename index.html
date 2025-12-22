@@ -295,77 +295,54 @@ async function cashout() {
 </script>
 <!-- ===== END ANTI CHEAT – SOFT BLOCK MODE ===== -->
 
-  <!-- ===== UI THEME ADD (VISUAL ONLY) ===== -->
-<style>
-/* BACKGROUND LAYER */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(circle at 50% 20%, rgba(120,0,255,0.15), transparent 40%),
-    linear-gradient(to bottom, #05040a, #060616);
-  z-index: -3;
+/* ===== UI COMPACT LAYOUT ADD ===== */
+
+/* History: 8 cột cố định */
+.history {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  overflow: hidden;
 }
 
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  z-index: -2;
-}
-
-/* CARD GLOW */
-.card {
-  background: rgba(12, 15, 40, 0.85);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 0 20px rgba(120,0,255,0.08);
-}
-
-/* MULTIPLIER STYLE */
-.multiplier {
-  color: #d6b3ff;
-  text-shadow: 0 0 20px rgba(170,80,255,0.6);
-}
-
-/* BUTTONS – COMPACT STYLE */
-button {
-  padding: 10px;
-  font-size: 15px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #7c3aed, #22d3ee);
-  color: #000;
-}
-
-button.stop {
-  background: #111;
-  color: #777;
-}
-
-/* INPUTS */
-input, select {
-  background: #0b0f2a;
-  color: #fff;
-  font-size: 14px;
-}
-
-/* HISTORY PILL */
 .history span {
-  background: rgba(120,0,255,0.15);
-  border: 1px solid rgba(120,0,255,0.25);
+  text-align: center;
+  padding: 6px 0;
+  font-size: 13px;
 }
 
-/* TOAST */
-.toast {
-  background: linear-gradient(135deg, #7c3aed, #22d3ee);
-  color: #000;
-  font-weight: bold;
+/* Bet + Auto cùng 1 dòng */
+.bet-row {
+  display: flex;
+  gap: 8px;
 }
-</style>
-<!-- ===== END UI THEME ADD ===== -->
+
+.bet-row input {
+  flex: 1;
+}
+
+/* Start + Stop cùng 1 dòng */
+.action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.action-row button {
+  flex: 1;
+}
+
+/* Thu gọn card */
+.card {
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+/* Thu nhỏ multiplier một chút để tiết kiệm chiều cao */
+.multiplier {
+  font-size: 48px;
+  margin: 10px 0;
+}
+
+/* ===== END UI COMPACT LAYOUT ADD ===== */
 </body>
 </html>
