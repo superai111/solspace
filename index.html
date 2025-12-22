@@ -295,14 +295,15 @@ async function cashout() {
 </script>
 <!-- ===== END ANTI CHEAT – SOFT BLOCK MODE ===== -->
 
-<!-- ===== UI COMPACT PATCH – ONLY ADD, NO MODIFY ===== -->
+<!-- ===== UI PATCH – MATCH FINAL DESIGN (STRICT) ===== -->
 <style>
-/* Nhẹ màu nền tổng thể hơn */
+
+/* 1️⃣ Nền tổng thể: nhạt hơn đúng mức */
 body {
-  background: radial-gradient(circle at top, #12255a, #080b1f);
+  background: radial-gradient(circle at top, #1a2f6a, #0b1026);
 }
 
-/* History: đúng 8 cột */
+/* 2️⃣ History: đúng 8 cột – 1 hàng – không scroll */
 .history {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -310,34 +311,56 @@ body {
   overflow: hidden;
 }
 .history span {
+  background: rgba(255,255,255,0.06);
   padding: 6px 0;
-  text-align: center;
   font-size: 12px;
+  text-align: center;
+  border-radius: 8px;
 }
 
-/* Bet + Auto cùng 1 dòng, rộng bằng nhau */
-#bet, #auto {
+/* 3️⃣ Bet Points + Auto Cashout: CHỈ 2 CỘT – BẰNG NHAU */
+#bet,
+#auto {
   width: calc(50% - 4px);
   display: inline-block;
 }
-#bet { float: left; }
-#auto { float: right; }
+#bet {
+  float: left;
+}
+#auto {
+  float: right;
+}
 
-/* START + STOP cùng 1 dòng */
+/* clear float sau input */
+#auto::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+/* 4️⃣ START + STOP: 2 nút – 1 hàng */
 button[onclick="startRound()"],
 #stopBtn {
   width: calc(50% - 4px);
+  display: inline-block;
 }
 button[onclick="startRound()"] {
   float: left;
 }
 #stopBtn {
   float: right;
-  background: #ff6b6b;
+  background: #ff7b7b;
   color: #000;
 }
 
-/* Thu gọn spacing để leaderboard vừa 1 màn hình */
+/* clear float sau button */
+#stopBtn::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+/* 5️⃣ Thu gọn spacing để leaderboard vừa 1 màn hình */
 .card {
   padding: 12px;
   margin-bottom: 10px;
@@ -346,8 +369,8 @@ button[onclick="startRound()"] {
   font-size: 48px;
   margin: 10px 0;
 }
-</style>
-<!-- ===== END UI COMPACT PATCH ===== -->
 
+</style>
+<!-- ===== END UI PATCH ===== -->
 </body>
   </html>
