@@ -188,7 +188,65 @@ async function syncPointsFromBackend() {
 }
 /* ===== END ADD ===== */
 
-/* GAME LOGIC (UNCHANGED) */
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add("active");
+  loadLeaderboard();
+}
+
+async function loadLeaderboard() {
+  try {
+    const url = currentTab === "final"
+      ? BACKEND_URL + "/leaderboard/final"
+      : BACKEND_URL + "/leaderboard?range=48h";
+
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const body = $("leaderboardBody");
+    body.innerHTML = "";
+    data.forEach((u, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${u.rank || i + 1}</td>
+        <td>${u.wallet.slice(0,4)}...${u.wallet.slice(-4)}</td>
+        <td>${(currentTab === "final" ? u.finalScore : u.score).toFixed(3)}</td>
+      `;
+      body.appendChild(tr);
+    });
+  } catch {}
+}
+
+setInterval(loadLeaderboard, 30000);
+loadLeaderboard();
+
+async function connectWallet() {
+  const type = $("walletType").value;
+  let detected = null;
+
+  if (type === "phantom" && window.solana?.isPhantom) detected = window.solana;
+  else if (type === "solflare" && window.solflare?.isSolflare) detected = window.solflare;
+  else if (type === "backpack" && window.backpack?.isBackpack) detected = window.backpack;
+
+  if (!detected) {
+    showToast("Wallet not detected");
+    return;
+  }
+
+  try {
+    const res = await detected.connect();
+    provider = detected;
+    wallet = res.publicKey.toString();
+    $("wallet").textContent = wallet.slice(0,4) + "..." + wallet.slice(-4);
+    showToast("Wallet connected successfully!");
+    syncPointsFromBackend();
+  } catch {
+    showToast("Connection rejected");
+  }
+}
+
 function genCrash() {
   const r = Math.random();
   return r < 0.6 ? 1 + Math.random() * 0.5 :
@@ -262,38 +320,113 @@ async function cashout() {
 
   showToast(`Cashed out at ${multiplier.toFixed(2)}x → +${win} points!`);
 }
+
+async function depositSOL() {
+  if (!provider) return showToast("Please connect wallet first");
+  const btn = $("depositBtn");
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Depositing...";
+
+  try {
+    const sol = Number($("depositAmount").value);
+    if (isNaN(sol) || sol < 0.005) {
+      showToast("Minimum 0.005 SOL");
+      return;
+    }
+
+    const conn = new solanaWeb3.Connection(
+      solanaWeb3.clusterApiUrl("mainnet-beta"),
+      "confirmed"
+    );
+    const from = provider.publicKey;
+
+    const tx = new solanaWeb3.Transaction().add(
+      solanaWeb3.SystemProgram.transfer({
+        fromPubkey: from,
+        toPubkey: SYSTEM_WALLET,
+        lamports: Math.floor(sol * solanaWeb3.LAMPORTS_PER_SOL)
+      })
+    );
+
+    tx.feePayer = from;
+    const { blockhash } = await conn.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+
+    const { signature } = await provider.signAndSendTransaction(tx);
+    await conn.confirmTransaction(signature, "confirmed");
+
+    const res = await fetch(BACKEND_URL + "/check-deposit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet: from.toString() })
+    });
+    const data = await res.json();
+
+    if (data.ok && data.addedPoint > 0) {
+      points += data.addedPoint;
+      savePoints();
+      syncPointsFromBackend();
+      showToast(`Deposit success! +${data.addedPoint} points`);
+    } else {
+      showToast("SOL sent – points will update soon");
+    }
+
+    $("depositAmount").value = "";
+  } catch {
+    showToast("Transaction cancelled or failed");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
 </script>
 
-<!-- ===== ANTI CHEAT – SOFT BLOCK MODE ===== -->
+<!-- ===== ANTI CHEAT SAFE MODE – ONLY OBSERVE, NO BLOCK ===== -->
 <script>
 (function () {
   let lastStartTime = 0;
+  let lastCashoutTime = 0;
+  let lastPoints = points;
+
+  function flag(reason, extra = {}) {
+    console.warn("[ANTI CHEAT FLAG]", reason, extra);
+    showToast("Suspicious activity detected", 2000);
+  }
+
+  setInterval(() => {
+    const diff = points - lastPoints;
+    if (Math.abs(diff) > 1_000_000) {
+      flag("ABNORMAL_POINTS_CHANGE", { diff });
+    }
+    lastPoints = points;
+  }, 500);
 
   const _startRound = window.startRound;
   window.startRound = function () {
     const now = Date.now();
-
-    // START_SPAM → SOFT BLOCK (ignore START)
     if (now - lastStartTime < 300) {
-      console.warn("[ANTI CHEAT] START_SPAM_SOFT_BLOCK");
-      return; // ignore START
+      flag("START_SPAM", { delta: now - lastStartTime });
     }
-
     lastStartTime = now;
     return _startRound.apply(this, arguments);
   };
 
   const _cashout = window.cashout;
   window.cashout = function () {
-    // CASHOUT_WHEN_NOT_RUNNING → return luôn
     if (!running) {
-      return;
+      flag("CASHOUT_WHEN_NOT_RUNNING");
     }
+    const now = Date.now();
+    if (now - lastCashoutTime < 200) {
+      flag("CASHOUT_SPAM", { delta: now - lastCashoutTime });
+    }
+    lastCashoutTime = now;
     return _cashout.apply(this, arguments);
   };
 })();
 </script>
-<!-- ===== END ANTI CHEAT – SOFT BLOCK MODE ===== -->
+<!-- ===== END ANTI CHEAT SAFE MODE ===== -->
 
 </body>
   </html>
