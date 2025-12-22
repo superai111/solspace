@@ -295,54 +295,59 @@ async function cashout() {
 </script>
 <!-- ===== END ANTI CHEAT – SOFT BLOCK MODE ===== -->
 
-/* ===== UI COMPACT LAYOUT ADD ===== */
+<!-- ===== UI COMPACT PATCH – ONLY ADD, NO MODIFY ===== -->
+<style>
+/* Nhẹ màu nền tổng thể hơn */
+body {
+  background: radial-gradient(circle at top, #12255a, #080b1f);
+}
 
-/* History: 8 cột cố định */
+/* History: đúng 8 cột */
 .history {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   gap: 6px;
   overflow: hidden;
 }
-
 .history span {
-  text-align: center;
   padding: 6px 0;
-  font-size: 13px;
+  text-align: center;
+  font-size: 12px;
 }
 
-/* Bet + Auto cùng 1 dòng */
-.bet-row {
-  display: flex;
-  gap: 8px;
+/* Bet + Auto cùng 1 dòng, rộng bằng nhau */
+#bet, #auto {
+  width: calc(50% - 4px);
+  display: inline-block;
+}
+#bet { float: left; }
+#auto { float: right; }
+
+/* START + STOP cùng 1 dòng */
+button[onclick="startRound()"],
+#stopBtn {
+  width: calc(50% - 4px);
+}
+button[onclick="startRound()"] {
+  float: left;
+}
+#stopBtn {
+  float: right;
+  background: #ff6b6b;
+  color: #000;
 }
 
-.bet-row input {
-  flex: 1;
-}
-
-/* Start + Stop cùng 1 dòng */
-.action-row {
-  display: flex;
-  gap: 8px;
-}
-
-.action-row button {
-  flex: 1;
-}
-
-/* Thu gọn card */
+/* Thu gọn spacing để leaderboard vừa 1 màn hình */
 .card {
   padding: 12px;
   margin-bottom: 10px;
 }
-
-/* Thu nhỏ multiplier một chút để tiết kiệm chiều cao */
 .multiplier {
   font-size: 48px;
   margin: 10px 0;
 }
+</style>
+<!-- ===== END UI COMPACT PATCH ===== -->
 
-/* ===== END UI COMPACT LAYOUT ADD ===== */
 </body>
-</html>
+  </html>
